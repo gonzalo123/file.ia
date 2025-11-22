@@ -27,38 +27,6 @@ The tech stack includes:
 
 The core challenge is handling different file types and presenting them to the LLM. We support a variety of formats by mapping them to Bedrock's expected input types.
 
-Here is how we process uploaded files:
-
-```python
-def process_uploaded_files(elements: list) -> tuple[list[dict], dict]:
-    # Map MIME types to Bedrock formats
-    mime_map = {
-        "application/pdf": "pdf",
-        "text/csv": "csv",
-        "application/msword": "doc",
-        "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
-        "application/vnd.ms-excel": "xls",
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "xlsx",
-        "text/html": "html",
-        "text/plain": "txt",
-        "text/markdown": "md"
-    }
-    
-    docs = [f for f in elements if f.type == "file" and f.mime in mime_map]
-    
-    for doc in docs:
-        # ... read bytes and sanitize filename ...
-        content_blocks.append({
-            "document": {
-                "name": sanitize_filename(doc.name),
-                "format": mime_map[doc.mime],
-                "source": {"bytes": bytes}
-            }
-        })
-        
-    return content_blocks, files
-```
-
 To enable file uploads in Chainlit, you need to configure the `[features.spontaneous_file_upload]` section in your `.chainlit/config.toml`. This is where you define which MIME types are accepted.
 
 ```toml
@@ -83,6 +51,28 @@ To enable file uploads in Chainlit, you need to configure the `[features.spontan
 The main agent loop handles the conversation. It checks for uploaded files, processes them, and constructs the message payload for the LLM. We also include robust error handling to manage context window limits gracefully.
 
 ```python
+def get_content_blocks_from_message(message: cl.Message):
+    docs = [f for f in message.elements if f.type == "file" and f.mime in MIME_MAP]
+    content_blocks = []
+
+    for doc in docs:
+        file = Path(doc.path)
+        file_bytes = file.read_bytes()
+        shutil.rmtree(file.parent)
+
+        content_blocks.append({
+            "document": {
+                "name": sanitize_filename(doc.name),
+                "format": MIME_MAP[doc.mime],
+                "source": {"bytes": file_bytes}
+            }
+        })
+
+    if content_blocks:
+        content_blocks.append({"text": message.content})
+
+    return content_blocks
+
 @cl.on_message
 async def handle_message(message: cl.Message):
     # ... setup ...
@@ -99,6 +89,8 @@ async def handle_message(message: cl.Message):
     except ContextWindowOverflowException:
         await msg.stream_token("\n\n⚠️ **Error:** The file is too large...")
 ```
+
+
 
 This pattern allows for **ad-hoc analysis**. You don't need to pre-ingest data. You can:
 1.  **Analyze Financials:** Upload an Excel sheet and ask for trends.

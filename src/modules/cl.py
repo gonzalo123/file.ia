@@ -32,7 +32,7 @@ def get_content_blocks_from_message(message: cl.Message):
         content_blocks.append({
             "document": {
                 "name": sanitize_filename(doc.name),
-                "format": "pdf",
+                "format": MIME_MAP[doc.mime],
                 "source": {"bytes": file_bytes}
             }
         })
