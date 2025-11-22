@@ -20,19 +20,6 @@ JWT_ALGORITHM = "HS256"
 
 BASE_URL = APP_ID
 
-
-class Dbnames(StrEnum):
-    LOCAL = "local"
-
-
-DATABASES = {
-    Dbnames.LOCAL: f"dbname='{os.getenv('LOCAL_DB_NAME')}' "
-                   f"user='{os.getenv('LOCAL_DB_USER')}' "
-                   f"host='{os.getenv('LOCAL_DB_HOST')}' "
-                   f"password='{os.getenv('LOCAL_DB_PASS')}' "
-                   f"port='{os.getenv('LOCAL_DB_PORT')}'",
-}
-
 AWS_ACCESS_KEY_ID = os.getenv('AWS_ACCESS_KEY_ID', False)
 AWS_SECRET_ACCESS_KEY = os.getenv('AWS_SECRET_ACCESS_KEY', False)
 AWS_PROFILE_NAME = os.getenv('AWS_PROFILE_NAME', False)
