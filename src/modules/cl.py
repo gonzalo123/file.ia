@@ -58,7 +58,7 @@ def get_content_blocks_from_message(message: cl.Message):
 
 def sanitize_filename(name: str) -> str:
     # Remove invalid characters (allow alphanumeric, whitespace, hyphens, parentheses, square brackets)
-    name = re.sub(r'[^a-zA-Z0-9\s\-\(\)\[\]]', '', name)
+    name = re.sub(r'[^a-zA-Z0-9\s\-\(\)\[\]\._]', '', name)
     # Replace multiple whitespaces with single whitespace
     name = re.sub(r'\s+', ' ', name)
     return name.strip()
