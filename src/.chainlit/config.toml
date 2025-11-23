@@ -70,7 +70,7 @@ reaction_on_message_received = false
         "text/x-markdown"
     ]
     max_files = 20
-    max_size_mb = 500
+    max_size_mb = 4
 
 [features.audio]
     # Enable audio features
