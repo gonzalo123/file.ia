@@ -8,16 +8,32 @@ from typing import Any, List, Callable
 import chainlit as cl
 import jwt
 from botocore.config import Config
+from botocore.exceptions import ClientError
 from strands import Agent
 from strands.agent import SlidingWindowConversationManager
 from strands.hooks import (
     HookProvider, HookRegistry, BeforeToolCallEvent, AfterToolCallEvent)
 from strands.models import BedrockModel
+from strands.types.exceptions import ContextWindowOverflowException
 from strands_tools import calculator, current_time, think
 
 from settings import Models, MIME_MAP
 
 logger = logging.getLogger(__name__)
+
+
+def get_question_from_message(message: cl.Message):
+    content_blocks = None
+    if message.elements:
+        content_blocks = get_content_blocks_from_message(message)
+
+    if content_blocks:
+        content_blocks.append({"text": message.content or "Write a summary of the document"})
+        question = content_blocks
+    else:
+        question = message.content
+
+    return question
 
 
 def get_content_blocks_from_message(message: cl.Message):
@@ -36,9 +52,6 @@ def get_content_blocks_from_message(message: cl.Message):
                 "source": {"bytes": file_bytes}
             }
         })
-
-    if content_blocks:
-        content_blocks.append({"text": message.content})
 
     return content_blocks
 
@@ -178,3 +191,35 @@ def get_agent(
         tools=tools,
         hooks=hooks
     )
+
+
+async def process_user_task(agent: Agent, question: Any, debug: bool):
+    message_history = cl.user_session.get("message_history")
+    message_history.append({"role": "user", "content": question})
+    msg = cl.Message(content="")
+    await msg.send()
+
+    final_question = question
+    if debug and isinstance(question, str):
+        extra = (f"If there is any error in any tool during agent execution, "
+                 f"explain the error so I can fix it.")
+        final_question = f"{question}\n{extra}"
+    try:
+        async for event in agent.stream_async(final_question):
+            if "data" in event:
+                await msg.stream_token(str(event["data"]))
+            elif "message" in event:
+                await msg.stream_token("\n")
+                message_history.append(event["message"])
+    except ContextWindowOverflowException:
+        await msg.stream_token(
+            "\n\n⚠️ **Error:** The file is too large for the model to process. Please try a smaller file.")
+    except ClientError as e:
+        if e.response['Error']['Code'] == 'ValidationException':
+            await msg.stream_token(f"\n\n⚠️ **Error:** Validation error from Bedrock: {e}")
+        else:
+            await msg.stream_token(f"\n\n⚠️ **Error:** An unexpected error occurred: {e}")
+    except Exception as e:
+        await msg.stream_token(f"\n\n⚠️ **Error:** An unexpected error occurred: {e}")
+
+    await msg.update()

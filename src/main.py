@@ -3,11 +3,9 @@ import logging
 from typing import Dict, Optional
 
 import chainlit as cl
-from botocore.exceptions import ClientError
-from strands.types.exceptions import ContextWindowOverflowException
 
 from modules.cl import (
-    auth_callback, get_agent, get_orchestrator_tools, LoggingHooks, get_content_blocks_from_message)
+    auth_callback, get_agent, get_orchestrator_tools, LoggingHooks, get_question_from_message, process_user_task)
 from modules.prompts import MAIN_SYSTEM_PROMPT
 from settings import (
     ENVIRONMENT, SECRET,
@@ -38,7 +36,6 @@ def header_auth_callback(headers: Dict) -> Optional[cl.User]:
 async def start_chat():
     cl.user_session.set("should_stop", False)
     cl.user_session.set("current_task", None)
-    cl.user_session.set("files", {})
 
     agent = get_agent(
         system_prompt=MAIN_SYSTEM_PROMPT,
@@ -67,59 +64,11 @@ async def on_chat_end():
 @cl.on_message
 async def handle_message(message: cl.Message):
     agent = cl.user_session.get("agent")
-
     message_history = cl.user_session.get("message_history")
-    files = cl.user_session.get("files", {})
+    question = get_question_from_message(message)
+    message_history.append({"role": "user", "content": question})
 
-    if message.elements:
-        content_blocks = get_content_blocks_from_message(message)
-
-        if content_blocks:
-            content_blocks.append({"text": message.content})
-            user_message = {
-                "role": "user",
-                "content": content_blocks
-            }
-            message_history.append(user_message)
-            cl.user_session.set("files", files)
-            question = content_blocks
-        else:
-            message_history.append({"role": "user", "content": message.content})
-            question = message.content
-    else:
-        message_history.append({"role": "user", "content": message.content})
-        question = message.content
-
-    async def user_task(debug):
-        msg = cl.Message(content="")
-        await msg.send()
-
-        final_question = question
-        if debug and isinstance(question, str):
-            extra = (f"If there is any error in any tool during agent execution, "
-                     f"explain the error so I can fix it.")
-            final_question = f"{question}\n{extra}"
-        try:
-            async for event in agent.stream_async(final_question):
-                if "data" in event:
-                    await msg.stream_token(str(event["data"]))
-                elif "message" in event:
-                    await msg.stream_token("\n")
-                    message_history.append(event["message"])
-        except ContextWindowOverflowException:
-            await msg.stream_token(
-                "\n\n⚠️ **Error:** The file is too large for the model to process. Please try a smaller file.")
-        except ClientError as e:
-            if e.response['Error']['Code'] == 'ValidationException':
-                await msg.stream_token(f"\n\n⚠️ **Error:** Validation error from Bedrock: {e}")
-            else:
-                await msg.stream_token(f"\n\n⚠️ **Error:** An unexpected error occurred: {e}")
-        except Exception as e:
-            await msg.stream_token(f"\n\n⚠️ **Error:** An unexpected error occurred: {e}")
-
-        await msg.update()
-
-    task = asyncio.create_task(user_task(DEBUG))
+    task = asyncio.create_task(process_user_task(agent, question, DEBUG))
     cl.user_session.set("task", task)
     cl.user_session.set("conversation_history", message_history)
     try:

@@ -75,22 +75,19 @@ def get_content_blocks_from_message(message: cl.Message):
 
 @cl.on_message
 async def handle_message(message: cl.Message):
-    # ... setup ...
+    agent = cl.user_session.get("agent")
+    message_history = cl.user_session.get("message_history")
+    question = get_question_from_message(message)
+    message_history.append({"role": "user", "content": question})
 
-    if message.elements:
-        content_blocks = get_content_blocks_from_message(message)
-        # ... add files to context ...
-    
-    # ... construct final question ...
-
+    task = asyncio.create_task(process_user_task(agent, question, DEBUG))
+    cl.user_session.set("task", task)
+    cl.user_session.set("conversation_history", message_history)
     try:
-        async for event in agent.stream_async(final_question):
-            # ... stream response ...
-    except ContextWindowOverflowException:
-        await msg.stream_token("\n\n⚠️ **Error:** The file is too large...")
+        await task
+    except asyncio.CancelledError:
+        logger.info("User task was cancelled.")
 ```
-
-
 
 This pattern allows for **ad-hoc analysis**. You don't need to pre-ingest data. You can:
 1.  **Analyze Financials:** Upload an Excel sheet and ask for trends.
