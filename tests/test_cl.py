@@ -9,11 +9,11 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..', 'src'))
 from modules.cl import sanitize_filename, get_question_from_message, get_content_blocks_from_message, auth_callback
 
 def test_sanitize_filename():
-    assert sanitize_filename("valid_name.txt") == "valid_name.txt"
-    assert sanitize_filename("invalid/name.txt") == "invalidname.txt"
-    assert sanitize_filename("name with spaces.txt") == "name with spaces.txt"
+    assert sanitize_filename("valid_name.txt") == "valid name txt"
+    assert sanitize_filename("invalid/name.txt") == "invalidname txt"
+    assert sanitize_filename("name with spaces.txt") == "name with spaces txt"
     assert sanitize_filename("  multiple   spaces  ") == "multiple spaces"
-    assert sanitize_filename("test-file(1).pdf") == "test-file(1).pdf"
+    assert sanitize_filename("test-file(1).pdf") == "test-file(1) pdf"
 
 def test_get_question_from_message_text_only():
     message = MagicMock()
@@ -59,7 +59,7 @@ def test_get_content_blocks_from_message(mock_rmtree, mock_path):
         blocks = get_content_blocks_from_message(message)
         
         assert len(blocks) == 1
-        assert blocks[0]["document"]["name"] == "test.pdf"
+        assert blocks[0]["document"]["name"] == "test pdf"
         assert blocks[0]["document"]["format"] == "pdf"
         assert blocks[0]["document"]["source"]["bytes"] == b"file_content"
         

@@ -51,6 +51,20 @@ To enable file uploads in Chainlit, you need to configure the `[features.spontan
 The main agent loop handles the conversation. It checks for uploaded files, processes them, and constructs the message payload for the LLM. We also include robust error handling to manage context window limits gracefully.
 
 ```python
+def get_question_from_message(message: cl.Message):
+    content_blocks = None
+    if message.elements:
+        content_blocks = get_content_blocks_from_message(message)
+
+    if content_blocks:
+        content_blocks.append({"text": message.content or "Write a summary of the document"})
+        question = content_blocks
+    else:
+        question = message.content
+
+    return question
+
+
 def get_content_blocks_from_message(message: cl.Message):
     docs = [f for f in message.elements if f.type == "file" and f.mime in MIME_MAP]
     content_blocks = []
@@ -68,21 +82,14 @@ def get_content_blocks_from_message(message: cl.Message):
             }
         })
 
-    if content_blocks:
-        content_blocks.append({"text": message.content})
-
     return content_blocks
 
 @cl.on_message
 async def handle_message(message: cl.Message):
-    agent = cl.user_session.get("agent")
-    message_history = cl.user_session.get("message_history")
-    question = get_question_from_message(message)
-    message_history.append({"role": "user", "content": question})
-
-    task = asyncio.create_task(process_user_task(agent, question, DEBUG))
+    task = asyncio.create_task(process_user_task(
+        question=get_question_from_message(message),
+        debug=DEBUG))
     cl.user_session.set("task", task)
-    cl.user_session.set("conversation_history", message_history)
     try:
         await task
     except asyncio.CancelledError:

@@ -87,6 +87,7 @@ async def test_on_chat_end():
 @patch('main.get_question_from_message')
 @patch('main.process_user_task')
 @patch('main.asyncio.create_task')
+@patch('main.DEBUG', False)
 async def test_handle_message(mock_create_task, mock_process_task, mock_get_question):
     # Setup user_session mock
     mock_session = MagicMock()
@@ -115,9 +116,9 @@ async def test_handle_message(mock_create_task, mock_process_task, mock_get_ques
     
     await handle_message(message)
     
-    assert len(mock_history) == 1
-    assert mock_history[0] == {"role": "user", "content": "test question"}
+    print(f"Process task calls: {mock_process_task.call_args_list}")
+    print(f"Session get agent: {mock_session.get('agent')}")
     
     mock_create_task.assert_called_once()
+    mock_process_task.assert_called_once_with(question="test question", debug=False)
     mock_session.set.assert_any_call("task", mock_task)
-    mock_session.set.assert_any_call("conversation_history", mock_history)

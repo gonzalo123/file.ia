@@ -43,11 +43,7 @@ async def start_chat():
         tools=get_orchestrator_tools()
     )
     cl.user_session.set("agent", agent)
-
-    cl.user_session.set(
-        "message_history",
-        [{"role": "system", "content": "You are a helpful assistant."}],
-    )
+    cl.user_session.set("message_history", [])
 
 
 @cl.on_chat_end
@@ -63,14 +59,10 @@ async def on_chat_end():
 
 @cl.on_message
 async def handle_message(message: cl.Message):
-    agent = cl.user_session.get("agent")
-    message_history = cl.user_session.get("message_history")
-    question = get_question_from_message(message)
-    message_history.append({"role": "user", "content": question})
-
-    task = asyncio.create_task(process_user_task(agent, question, DEBUG))
+    task = asyncio.create_task(process_user_task(
+        question=get_question_from_message(message),
+        debug=DEBUG))
     cl.user_session.set("task", task)
-    cl.user_session.set("conversation_history", message_history)
     try:
         await task
     except asyncio.CancelledError:

@@ -43,7 +43,6 @@ def get_content_blocks_from_message(message: cl.Message):
     for doc in docs:
         file = Path(doc.path)
         file_bytes = file.read_bytes()
-        shutil.rmtree(file.parent)
 
         content_blocks.append({
             "document": {
@@ -52,13 +51,16 @@ def get_content_blocks_from_message(message: cl.Message):
                 "source": {"bytes": file_bytes}
             }
         })
-
+    else:
+        shutil.rmtree(Path(docs[0].path).parent)
     return content_blocks
 
 
 def sanitize_filename(name: str) -> str:
+    # Replace underscores and dots with spaces
+    name = name.replace('_', ' ').replace('.', ' ')
     # Remove invalid characters (allow alphanumeric, whitespace, hyphens, parentheses, square brackets)
-    name = re.sub(r'[^a-zA-Z0-9\s\-\(\)\[\]\._]', '', name)
+    name = re.sub(r'[^a-zA-Z0-9\s\-\(\)\[\]]', '', name)
     # Replace multiple whitespaces with single whitespace
     name = re.sub(r'\s+', ' ', name)
     return name.strip()
@@ -193,7 +195,8 @@ def get_agent(
     )
 
 
-async def process_user_task(agent: Agent, question: Any, debug: bool):
+async def process_user_task(question: Any, debug: bool):
+    agent = cl.user_session.get("agent")
     message_history = cl.user_session.get("message_history")
     message_history.append({"role": "user", "content": question})
     msg = cl.Message(content="")
